@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Трекер привычек</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root {
+  --bg: #ffffff; --bg2: #f5f5f5; --bg3: #eeeeee;
+  --tx: #1a1a1a; --tx2: #666; --tx3: #999;
+  --border: rgba(0,0,0,0.1); --border2: rgba(0,0,0,0.18);
+  --radius: 12px; --radius-sm: 8px;
+  --purple: #7F77DD; --teal: #1D9E75; --blue: #378ADD;
+  --amber: #BA7517; --pink: #D4537E; --green: #639922; --coral: #D85A30;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#1c1c1e; --bg2:#2c2c2e; --bg3:#3a3a3c; --tx:#f0f0f0; --tx2:#aaa; --tx3:#666; --border:rgba(255,255,255,0.1); --border2:rgba(255,255,255,0.2); }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; background: var(--bg); color: var(--tx); min-height: 100vh; padding-bottom: 80px; }
+.nav { display: flex; background: var(--bg); border-bottom: 0.5px solid var(--border); position: sticky; top: 0; z-index: 10; padding: 0 4px; }
+.ntab { flex: 1; padding: 12px 4px 10px; font-size: 11px; text-align: center; cursor: pointer; color: var(--tx3); border: none; background: none; border-bottom: 2px solid transparent; transition: color .2s; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.ntab .ico { font-size: 18px; }
+.ntab.on { color: var(--purple); border-bottom-color: var(--purple); font-weight: 600; }
+.view { display: none; padding: 16px 12px; } .view.on { display: block; }
+
+/* KPI cards */
+.kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.kpi { background: var(--bg2); border-radius: var(--radius-sm); padding: 12px; }
+.kpi-lbl { font-size: 11px; color: var(--tx2); margin-bottom: 4px; }
+.kpi-val { font-size: 22px; font-weight: 700; color: var(--tx); }
+.kpi-sub { font-size: 10px; color: var(--tx3); margin-top: 2px; }
+
+/* Section */
+.sec-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--tx3); margin: 20px 0 10px; }
+
+/* Habit rows */
+.habit-card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 8px; }
+.habit-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.h-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.h-name { font-size: 14px; font-weight: 600; flex: 1; }
+.h-streak { font-size: 11px; color: var(--tx3); }
+.h-check { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border2); cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all .15s; }
+.h-check.done { border-color: transparent; color: white; }
+
+/* Mini heatmap 7 days */
+.days-row { display: flex; gap: 4px; }
+.day-cell { flex: 1; height: 28px; border-radius: 5px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 0.5px solid var(--border); transition: transform .1s; }
+.day-cell:active { transform: scale(.92); }
+.day-cell.done { border-color: transparent; }
+.day-num { font-size: 9px; color: var(--tx3); line-height: 1; }
+.day-cell.done .day-num { color: rgba(255,255,255,.7); }
+.day-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--border2); }
+.day-cell.done .day-dot { background: rgba(255,255,255,.6); }
+
+/* Goal bar */
+.goal-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.goal-label { font-size: 10px; color: var(--tx3); white-space: nowrap; }
+.goal-track { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+.goal-fill { height: 100%; border-radius: 2px; transition: width .3s; }
+.goal-pct { font-size: 10px; color: var(--tx3); min-width: 28px; text-align: right; }
+.goal-badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px; }
+
+/* Heatmap */
+.hmap-wrap { background: var(--bg2); border-radius: var(--radius); padding: 12px; margin-bottom: 12px; }
+.hmap-title { font-size: 12px; font-weight: 600; color: var(--tx2); margin-bottom: 10px; }
+.hmap-grid { display: grid; grid-template-columns: 32px repeat(7, 1fr); gap: 3px; align-items: center; }
+.hml { font-size: 9px; color: var(--tx3); text-align: right; padding-right: 4px; }
+.hmc { height: 18px; border-radius: 3px; }
+.hmd { font-size: 9px; color: var(--tx3); text-align: center; }
+
+/* Bar chart */
+.bar-card { background: var(--bg2); border-radius: var(--radius); padding: 12px; margin-bottom: 12px; }
+.bar-title { font-size: 12px; font-weight: 600; color: var(--tx2); margin-bottom: 10px; }
+.brow { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.bname { font-size: 11px; color: var(--tx2); width: 90px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btrack { flex: 1; height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.bfill { height: 100%; border-radius: 3px; transition: width .4s; }
+.bpct { font-size: 10px; color: var(--tx3); min-width: 26px; text-align: right; }
+
+/* Ring section */
+.sec-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.ring-card { background: var(--bg2); border-radius: var(--radius); padding: 12px; }
+
+/* Catalog pills */
+.pill-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill { display: flex; align-items: center; gap: 5px; font-size: 13px; padding: 7px 12px; border-radius: 20px; border: 1px solid var(--border2); cursor: pointer; color: var(--tx2); background: var(--bg); transition: all .15s; }
+.pill.sel { font-weight: 600; border-width: 2px; }
+.pdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.pill-goal { font-size: 10px; opacity: .6; }
+.apply-footer { position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 16px; background: var(--bg); border-top: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; z-index: 20; }
+.apply-btn { font-size: 14px; font-weight: 600; padding: 10px 24px; border-radius: 12px; border: none; background: var(--purple); color: white; cursor: pointer; }
+.sel-cnt { font-size: 13px; color: var(--tx2); }
+
+/* Goals view */
+.goal-card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 8px; }
+.gc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.gc-name { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+.gc-meta { font-size: 11px; color: var(--tx3); }
+.gc-track { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; margin-bottom: 5px; }
+.gc-fill { height: 100%; border-radius: 3px; }
+.gc-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--tx3); margin-bottom: 5px; }
+.gc-tip { font-size: 11px; color: var(--tx3); padding-top: 4px; border-top: 0.5px solid var(--border); }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <button class="ntab on" onclick="go('dash')"><span class="ico">📊</span>Дашборд</button>
+  <button class="ntab" onclick="go('goals')"><span class="ico">🎯</span>Цели</button>
+  <button class="ntab" onclick="go('track')"><span class="ico">✅</span>Трекер</button>
+  <button class="ntab" onclick="go('pick')"><span class="ico">＋</span>Каталог</button>
+</div>
+
+<div id="v-dash" class="view on"></div>
+<div id="v-goals" class="view"></div>
+<div id="v-track" class="view"></div>
+<div id="v-pick" class="view"></div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+const DAYS = 7;
+const KEY = 'hbt_tg_v1';
+
+const CATALOG = [
+  {sec:'sport',label:'Спорт',color:'#7F77DD',items:[
+    {n:'Теннис',goal:'2 раза/нед',gd:2,tip:'2 тренировки → NTRP 3.5+ через 3 мес.'},
+    {n:'Утренняя зарядка',goal:'5 раз/нед',gd:5,tip:'15 мин каждое утро'},
+    {n:'Растяжка',goal:'6 раз/нед',gd:6,tip:'10 мин — гибкость через 4 нед.'},
+    {n:'10 000 шагов',goal:'7 дней/нед',gd:7,tip:'Норма ВОЗ — каждый день'},
+    {n:'Бег',goal:'3 раза/нед',gd:3,tip:'3×30 мин — базовая кардионорма'},
+    {n:'Силовая тренировка',goal:'3 раза/нед',gd:3,tip:'Достаточно для прогресса'},
+    {n:'Йога',goal:'4 раза/нед',gd:4,tip:'Баланс гибкости и восстановления'},
+    {n:'Плавание',goal:'2 раза/нед',gd:2,tip:'Без удара по суставам'},
+  ]},
+  {sec:'spirit',label:'Духовное',color:'#1D9E75',items:[
+    {n:'Намаз (5 раз)',goal:'7 дней/нед',gd:7,tip:'Обязательный столп'},
+    {n:'Коран (1 стр.)',goal:'7 дней/нед',gd:7,tip:'1 стр/день = Куран за 1.5 года'},
+    {n:'Утренний азкар',goal:'7 дней/нед',gd:7,tip:'Защита на весь день'},
+    {n:'Вечерний азкар',goal:'7 дней/нед',gd:7,tip:'Завершение дня с благодарностью'},
+    {n:'Зикр',goal:'5 раз/нед',gd:5,tip:'100 зикров — 10 мин в день'},
+    {n:'Садака',goal:'3 раза/нед',gd:3,tip:'Любой добрый поступок'},
+  ]},
+  {sec:'health',label:'Здоровье',color:'#378ADD',items:[
+    {n:'Сон до 23:00',goal:'6 раз/нед',gd:6,tip:'7-8ч — основа гормонального баланса'},
+    {n:'Вода 2 л',goal:'7 дней/нед',gd:7,tip:'Ежедневно — когнитив +20%'},
+    {n:'Без сахара',goal:'5 раз/нед',gd:5,tip:'Энергия без скачков'},
+    {n:'Витамины',goal:'7 дней/нед',gd:7,tip:'D3 + Омега-3 особенно важны'},
+    {n:'Прогулка',goal:'5 раз/нед',gd:5,tip:'30 мин — снижает кортизол'},
+    {n:'Контрастный душ',goal:'5 раз/нед',gd:5,tip:'Бодрость + сосуды'},
+    {n:'Медитация',goal:'5 раз/нед',gd:5,tip:'10 мин → -28% стресса'},
+  ]},
+  {sec:'work',label:'Работа',color:'#BA7517',items:[
+    {n:'Plan дня утром',goal:'5 раз/нед',gd:5,tip:'10 мин = 2ч сэкономленного времени'},
+    {n:'Review вечером',goal:'5 раз/нед',gd:5,tip:'Фиксация итогов — рост осознанности'},
+    {n:'Фокус-блок 90 мин',goal:'5 раз/нед',gd:5,tip:'Один глубокий блок в день'},
+    {n:'Без соцсетей до 9:00',goal:'5 раз/нед',gd:5,tip:'Утро без шума'},
+    {n:'Учёба 30 мин',goal:'4 раза/нед',gd:4,tip:'30 мин/день = 180ч в год'},
+    {n:'Записать идею',goal:'5 раз/нед',gd:5,tip:'Идеи не теряются'},
+    {n:'Pomodoro',goal:'4 раза/нед',gd:4,tip:'Лучший ритм для задач'},
+  ]},
+  {sec:'family',label:'Семья',color:'#D4537E',items:[
+    {n:'Время с женой',goal:'7 дней/нед',gd:7,tip:'Особенно важно сейчас — присутствие'},
+    {n:'Звонок родителям',goal:'3 раза/нед',gd:3,tip:'Связь с семьёй'},
+    {n:'Без телефона за ужином',goal:'7 дней/нед',gd:7,tip:'Полное присутствие'},
+    {n:'Подготовка к малышу',goal:'3 раза/нед',gd:3,tip:'Читать, обустраивать, планировать'},
+    {n:'Совместная прогулка',goal:'3 раза/нед',gd:3,tip:'30 мин вместе'},
+  ]},
+  {sec:'personal',label:'Личное',color:'#639922',items:[
+    {n:'Чтение 20 мин',goal:'5 раз/нед',gd:5,tip:'20 мин/день = 24 книги в год'},
+    {n:'Дневник',goal:'4 раза/нед',gd:4,tip:'Рефлексия письменно'},
+    {n:'Gratitude — 3 вещи',goal:'7 дней/нед',gd:7,tip:'3 благодарности меняют фокус дня'},
+    {n:'Без новостей до обеда',goal:'5 раз/нед',gd:5,tip:'Первые 4ч для себя'},
+    {n:'Подкаст / аудиокнига',goal:'4 раза/нед',gd:4,tip:'В машине или на прогулке'},
+  ]},
+  {sec:'finance',label:'Финансы',color:'#D85A30',items:[
+    {n:'Записать расходы',goal:'7 дней/нед',gd:7,tip:'Ежедневный учёт'},
+    {n:'Не тратить вне бюджета',goal:'5 раз/нед',gd:5,tip:'2 исключения в неделю — реалистично'},
+    {n:'Изучить инвестиции',goal:'3 раза/нед',gd:3,tip:'15 мин — чтение/видео'},
+    {n:'Обзор бюджета',goal:'1 раз/нед',gd:1,tip:'Воскресенье — сверка план/факт'},
+  ]},
+];
+
+const SEC = {}; CATALOG.forEach(s => { SEC[s.sec] = s; });
+const ITEM_MAP = {}; CATALOG.forEach(s => s.items.forEach(it => { ITEM_MAP[s.sec+'::'+it.n] = it; }));
+
+let selected = new Set(), habits = [], activeTab = 'dash';
+
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify({sel:[...selected], habits})); } catch(e){}
+  // Sync to bot
+  if (tg) {
+    try { tg.sendData(JSON.stringify({action:'sync_habits', habits})); } catch(e){}
+  }
+}
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(KEY)||'null');
+    if (d) { selected = new Set(d.sel||[]); habits = d.habits||[]; }
+  } catch(e){}
+}
+
+function dkey(off) {
+  const d = new Date(); d.setDate(d.getDate()-off);
+  return d.toISOString().slice(0,10);
+}
+function dDate(off) { const d=new Date(); d.setDate(d.getDate()-off); return d.getDate(); }
+function dDay(off) { const d=new Date(); d.setDate(d.getDate()-off); return ['вс','пн','вт','ср','чт','пт','сб'][d.getDay()]; }
+function streak(h) { let s=0; for(let i=0;i<90;i++){if(h.done?.[dkey(i)])s++;else break} return s; }
+function rate7(h) { let s=0; for(let i=0;i<7;i++) if(h.done?.[dkey(i)]) s++; return Math.round(s/7*100); }
+function goalPct(h) {
+  const meta = ITEM_MAP[h.key]; if(!meta) return rate7(h);
+  let done=0; for(let i=0;i<7;i++) if(h.done?.[dkey(i)]) done++;
+  return Math.min(100, Math.round(done/meta.gd*100));
+}
+
+function go(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.ntab').forEach((t,i)=>t.classList.toggle('on',['dash','goals','track','pick'][i]===tab));
+  ['dash','goals','track','pick'].forEach(v=>document.getElementById('v-'+v).classList.toggle('on',v===tab));
+  if(tab==='dash') renderDash();
+  if(tab==='goals') renderGoals();
+  if(tab==='track') renderTrack();
+  if(tab==='pick') renderPick();
+}
+
+function toggle(habitId, offset) {
+  const h = habits.find(x=>String(x.id)===String(habitId));
+  if(!h) return;
+  if(!h.done) h.done={};
+  const k=dkey(offset);
+  h.done[k]=!h.done[k];
+  save();
+  if(activeTab==='track') renderTrack();
+  if(activeTab==='dash') renderDash();
+  if(tg && offset===0) tg.HapticFeedback?.notificationOccurred('success');
+}
+
+// ─── DASH ──────────────────────────────────────────────────────────────────────
+function renderDash() {
+  const el = document.getElementById('v-dash');
+  if(!habits.length) { el.innerHTML=emptyState('pick'); return; }
+
+  const today=habits.filter(h=>h.done?.[dkey(0)]).length;
+  const total=habits.length;
+  const bestStr=habits.reduce((m,h)=>Math.max(m,streak(h)),0);
+  const avg7=Math.round(habits.reduce((s,h)=>s+rate7(h),0)/habits.length);
+  const onGoal=habits.filter(h=>goalPct(h)>=100).length;
+
+  let html = `<div class="kpi-grid">
+    <div class="kpi"><div class="kpi-lbl">Сегодня</div><div class="kpi-val">${today}/${total}</div><div class="kpi-sub">${Math.round(today/total*100)}% выполнено</div></div>
+    <div class="kpi"><div class="kpi-lbl">Лучший стрик</div><div class="kpi-val">${bestStr} дн.</div><div class="kpi-sub">подряд</div></div>
+    <div class="kpi"><div class="kpi-lbl">Неделя</div><div class="kpi-val">${avg7}%</div><div class="kpi-sub">среднее</div></div>
+    <div class="kpi"><div class="kpi-lbl">Цели нед.</div><div class="kpi-val">${onGoal}/${total}</div><div class="kpi-sub">выполнены</div></div>
+  </div>`;
+
+  // Heatmap 4 weeks
+  const days=['пн','вт','ср','чт','пт','сб','вс'];
+  html+=`<div class="hmap-wrap"><div class="hmap-title">Активность — 4 недели</div><div class="hmap-grid">
+    <div class="hml"></div>${days.map(d=>`<div class="hmd">${d}</div>`).join('')}`;
+  for(let w=3;w>=0;w--){
+    html+=`<div class="hml">-${w+1}н</div>`;
+    for(let d=0;d<7;d++){
+      const off=w*7+(6-d);
+      const done=total?habits.filter(h=>h.done?.[dkey(off)]).length:0;
+      const pct=total?done/total:0;
+      const a=pct===0?.06:.12+pct*.75;
+      html+=`<div class="hmc" style="background:rgba(127,119,221,${a.toFixed(2)});${off===0?'box-shadow:0 0 0 1.5px #7F77DD':''}"></div>`;
+    }
+  }
+  html+=`</div></div>`;
+
+  // Top habits bar chart
+  const sorted=[...habits].sort((a,b)=>goalPct(b)-goalPct(a)).slice(0,5);
+  html+=`<div class="bar-card"><div class="bar-title">Прогресс к цели (неделя)</div>`;
+  sorted.forEach(h=>{
+    const p=goalPct(h);
+    html+=`<div class="brow"><div class="bname">${h.name}</div><div class="btrack"><div class="bfill" style="width:${p}%;background:${h.color}"></div></div><span class="bpct">${p}%</span></div>`;
+  });
+  html+=`</div>`;
+
+  // Section progress rings (as bar rows)
+  html+=`<div class="bar-card"><div class="bar-title">По разделам</div>`;
+  CATALOG.forEach(sec=>{
+    const sh=habits.filter(h=>h.sec===sec.sec); if(!sh.length) return;
+    const done=sh.reduce((a,h)=>{for(let i=0;i<7;i++)if(h.done?.[dkey(i)])a++;return a},0);
+    const pct=Math.round(done/(sh.length*7)*100);
+    html+=`<div class="brow"><div class="bname">${sec.label}</div><div class="btrack"><div class="bfill" style="width:${pct}%;background:${sec.color}"></div></div><span class="bpct">${pct}%</span></div>`;
+  });
+  html+=`</div>`;
+
+  el.innerHTML=html;
+}
+
+// ─── GOALS ─────────────────────────────────────────────────────────────────────
+function renderGoals() {
+  const el = document.getElementById('v-goals');
+  if(!habits.length) { el.innerHTML=emptyState('pick'); return; }
+  const bySec={};
+  habits.forEach(h=>{if(!bySec[h.sec])bySec[h.sec]=[];bySec[h.sec].push(h)});
+  let html='';
+  CATALOG.forEach(sec=>{
+    if(!bySec[sec.sec]) return;
+    html+=`<div class="sec-title">${sec.label}</div>`;
+    bySec[sec.sec].forEach(h=>{
+      const meta=ITEM_MAP[h.key]; const p=goalPct(h);
+      const done7=Array.from({length:7},(_,i)=>h.done?.[dkey(i)]?1:0).reduce((a,b)=>a+b,0);
+      const target=meta?.gd||7;
+      const st=p>=100?{lbl:'Цель ✓',bg:'#1D9E7522',c:'#085041'}:p>=70?{lbl:'Близко',bg:'#BA751722',c:'#633806'}:{lbl:'В пути',bg:'#88878018',c:'var(--tx3)'};
+      html+=`<div class="goal-card">
+        <div class="gc-top">
+          <div class="gc-name"><div class="h-dot" style="background:${h.color}"></div>${h.name}<span class="goal-badge" style="background:${st.bg};color:${st.c};font-size:10px;padding:2px 7px;border-radius:20px">${st.lbl}</span></div>
+          <div class="gc-meta">${meta?.goal||''}</div>
+        </div>
+        <div class="gc-track"><div class="gc-fill" style="width:${p}%;background:${h.color}"></div></div>
+        <div class="gc-labels"><span>${done7} из ${target} дней</span><span>${p}%</span></div>
+        ${meta?.tip?`<div class="gc-tip">💡 ${meta.tip}</div>`:''}
+      </div>`;
+    });
+  });
+  el.innerHTML=html;
+}
+
+// ─── TRACK ─────────────────────────────────────────────────────────────────────
+function renderTrack() {
+  const el = document.getElementById('v-track');
+  if(!habits.length) { el.innerHTML=emptyState('pick'); return; }
+
+  const bySec={};
+  habits.forEach(h=>{if(!bySec[h.sec])bySec[h.sec]=[];bySec[h.sec].push(h)});
+
+  let html='';
+  CATALOG.forEach(sec=>{
+    if(!bySec[sec.sec]) return;
+    html+=`<div class="sec-title">${sec.label}</div>`;
+    bySec[sec.sec].forEach(h=>{
+      const s=streak(h); const p=goalPct(h); const todayDone=h.done?.[dkey(0)];
+      html+=`<div class="habit-card">
+        <div class="habit-top">
+          <div class="h-dot" style="background:${h.color}"></div>
+          <div style="flex:1"><div class="h-name">${h.name}</div>
+          <div class="h-streak">${s>0?`🔥 ${s} дн. стрик`:'—'} · ${p}% от цели</div></div>
+          <div class="h-check${todayDone?' done':''}" style="${todayDone?`background:${h.color}`:'background:var(--bg)'}" data-id="${h.id}">${todayDone?'✓':''}</div>
+        </div>
+        <div class="days-row">`;
+      for(let i=6;i>=0;i--){
+        const done=h.done?.[dkey(i)];
+        html+=`<div class="day-cell${done?' done':''}" style="${done?`background:${h.color};border-color:${h.color}`:'background:var(--bg2)'}" data-id="${h.id}" data-i="${i}">
+          <div class="day-num">${dDate(i)}</div>
+          <div class="day-dot"></div>
+        </div>`;
+      }
+      html+=`</div>`;
+      // goal bar
+      const meta=ITEM_MAP[h.key];
+      if(meta){
+        html+=`<div class="goal-row"><div class="goal-label">Цель: ${meta.goal}</div><div class="goal-track"><div class="goal-fill" style="width:${p}%;background:${h.color}"></div></div><div class="goal-pct">${p}%</div></div>`;
+      }
+      html+=`</div>`;
+    });
+  });
+
+  el.innerHTML=html;
+
+  el.querySelectorAll('.h-check').forEach(btn=>btn.addEventListener('click',()=>toggle(btn.dataset.id,0)));
+  el.querySelectorAll('.day-cell').forEach(cell=>cell.addEventListener('click',()=>toggle(cell.dataset.id,+cell.dataset.i)));
+}
+
+// ─── PICK ──────────────────────────────────────────────────────────────────────
+function renderPick() {
+  const el = document.getElementById('v-pick');
+  let html='';
+  CATALOG.forEach(s=>{
+    html+=`<div class="sec-title">${s.label}</div><div class="pill-grid">`;
+    s.items.forEach(it=>{
+      const key=s.sec+'::'+it.n; const isSel=selected.has(key);
+      html+=`<div class="pill${isSel?' sel':''}" style="${isSel?`background:${s.color}22;border-color:${s.color};color:var(--tx)`:'background:var(--bg)'}" data-key="${key}" data-color="${s.color}" data-sec="${s.sec}">
+        <div class="pdot" style="background:${s.color}"></div>${it.n}<span class="pill-goal">${it.goal}</span></div>`;
+    });
+    html+='</div>';
+  });
+  html+=`<div style="height:72px"></div>`;
+  el.innerHTML=html;
+
+  el.querySelectorAll('.pill').forEach(p=>p.addEventListener('click',()=>{
+    const key=p.dataset.key,color=p.dataset.color;
+    if(selected.has(key)){selected.delete(key);p.classList.remove('sel');p.style.cssText=''}
+    else{selected.add(key);p.classList.add('sel');p.style.background=color+'22';p.style.borderColor=color;p.style.borderWidth='2px';p.style.color='var(--tx)'}
+    document.getElementById('sel-cnt').textContent=selected.size+' выбрано';
+    try{localStorage.setItem(KEY+'_sel',JSON.stringify([...selected]))}catch(e){}
+  }));
+
+  // Footer
+  let footer = document.querySelector('.apply-footer');
+  if(!footer){
+    footer=document.createElement('div');
+    footer.className='apply-footer';
+    document.body.appendChild(footer);
+  }
+  footer.innerHTML=`<span class="sel-cnt" id="sel-cnt">${selected.size} выбрано</span><button class="apply-btn" onclick="applyPick()">Применить</button>`;
+  footer.style.display='flex';
+}
+
+function applyPick(){
+  const existing=new Set(habits.map(h=>h.key));
+  selected.forEach(key=>{
+    if(existing.has(key)) return;
+    const[sec,name]=key.split('::');
+    habits.push({id:Date.now()+Math.random(),key,name,sec,color:SEC[sec]?.color||'#888',done:{}});
+  });
+  habits=habits.filter(h=>selected.has(h.key));
+  save();
+  document.querySelector('.apply-footer')?.remove();
+  go('dash');
+  if(tg) tg.HapticFeedback?.notificationOccurred('success');
+}
+
+function emptyState(target){
+  return `<div style="text-align:center;padding:3rem 0;color:var(--tx3)">
+    <div style="font-size:40px;margin-bottom:12px">🌱</div>
+    <div style="font-size:15px;font-weight:600;color:var(--tx2);margin-bottom:8px">Нет привычек</div>
+    <div style="font-size:13px">Перейди в каталог и выбери нужные</div>
+    <button onclick="go('${target}')" style="margin-top:16px;padding:10px 24px;border-radius:12px;border:none;background:var(--purple);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Выбрать привычки</button>
+  </div>`;
+}
+
+load();
+if(habits.length>0) renderDash();
+else go('pick');
+</script>
+</body>
+</html>
