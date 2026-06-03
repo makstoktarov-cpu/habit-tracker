@@ -19,8 +19,8 @@ from apscheduler.triggers.cron import CronTrigger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://your-domain.com")  # URL where miniapp is hosted
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8767038761:AAGMlR6HdvbNURDmyyLeOrD1THRt5oMB5Os")
+WEBAPP_URL = os.getenv("WEBAPP_URL", "https://makstoktarov-cpu.github.io/habit-tracker")  # URL where miniapp is hosted
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 
