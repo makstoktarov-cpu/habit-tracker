@@ -1,0 +1,11 @@
+services:
+  - type: worker
+    name: habit-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        value: 8767038761:AAGMlR6HdvbNURDmyyLeOrD1THRt5oMB5Os
+      - key: WEBAPP_URL
+        value: https://makstoktarov-cpu.github.io/habit-tracker
